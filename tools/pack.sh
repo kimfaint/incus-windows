@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# usage: $0 version windows.iso virtio.iso local/ dest/
+# usage: $0 version windows.iso virtio.iso local/ dest/ options
 #
 set -eu
 
@@ -13,6 +13,12 @@ WINDOWS="${2}"
 VIRTIO="${3}"
 LOCAL=$(cd "${4}" && pwd)
 DESTDIR=$(cd "${5}" && pwd)
+OPTIONS="${6}"
+
+EXPORT=1
+case "$OPTIONS" in
+	*--noexport*) EXPORT="" ;;
+esac
 
 # -------------------------------------------------------------------- #
 
@@ -35,8 +41,9 @@ fi
 
 name=build$(head -c6 /dev/urandom | od -tx1 -vAn | xargs printf %s)
 cleanup() {
-	incus image rm "${name}" || :
+	printf '[+] Cleaning up\n'
 	incus delete -f "${name}"
+	rm -f "${DESTDIR}/unattended-${VERSION}.iso"
 }
 trap cleanup EXIT INT QUIT TERM
 
@@ -85,16 +92,37 @@ fi
 
 python3 "${PROGBASE}/click.py" "${name}"
 
-printf '[+] Converting the VM to an image\n'
-incus publish "${name}" --alias "${name}" --compression none
+alias="win${VERSION}"
+printf "[+] Publish the VM to an image ${alias}\n"
+incus image rm ${alias} 2>/dev/null || :
+incus publish "${name}" --alias "${alias}" --compression none
 
-printf '[+] Exporting the image\n'
-incus image export "${name}" "${DESTDIR}"
+printf '[+] Setting image metadata\n'
+metafile=${PROGBASE}/metas/10e.in
+awk '/properties:/ {f=1; next} f && /^[[:space:]]+[a-zA-Z_]+:/ {
+	key = $1;
+	sub(/^[[:space:]]+/, "", key);
+	sub(/:$/, "", key);
+	value = substr($0, index($0, $2));
+	print "incus image set-property $alias \"" key "\" \"" value "\""
+}' "$metafile" | while read -r cmd; do
+	(eval "$cmd")
+done
 
-printf '[+] Extracting disk.qcow2\n'
-cat "${DESTDIR}"/*.tar | tar -C "${DESTDIR}" -f- -x --transform s/rootfs.img/disk.qcow2/ rootfs.img
+if [ -n "$EXPORT" ]; then
+	printf '[+] Exporting the image\n'
+	incus image export "${alias}" "${DESTDIR}"
+
+	printf '[+] Extracting disk.qcow2\n'
+	cat "${DESTDIR}"/*.tar | tar -C "${DESTDIR}" -f- -x --transform s/rootfs.img/disk.qcow2/ rootfs.img
 # incus's disk.qcow2 file is not readable (mode=0)
-chmod 0644 "${DESTDIR}/disk.qcow2"
-rm -f "${DESTDIR}"/*.tar
+	chmod 0644 "${DESTDIR}/disk.qcow2"
+	rm -f "${DESTDIR}"/*.tar
 
-printf '[+] Image created\n'
+	printf '[+] Image exported to %s\n' ${DESTDIR}
+
+	printf '[+] Generating export metadata\n'
+        (exec sh "${PROGBASE}/mkmeta" "${1}" >"${DESTDIR}/incus.tar.xz")
+else
+	rm -rf "${DESTDIR}"
+fi

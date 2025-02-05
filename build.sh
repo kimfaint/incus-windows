@@ -11,17 +11,29 @@ set -eu
 PROGNAME=$(basename -- "${0}")
 PROGBASE=$(d=$(dirname -- "${0}"); cd "${d}" && pwd)
 
+PACKOPTIONS=""
+
 usage() {
-	printf 'usage: %s [-h] target\n' "${PROGNAME}"
+	printf 'usage: %s [-h] [--noexport] target\n' "${PROGNAME}"
+	printf 'options:\n'
+	printf '  -h           print this help\n'
+	printf '  --noexport   skip exporting the image to the output directory\n'
 }
 
-while getopts h- argv; do
+while getopts ":h-:" argv; do
 	case "${argv}" in
 	h)	usage
 		exit 0
 		;;
-	-)	break
-		;;
+	-)	case "${OPTARG}" in
+		noexport)
+			PACKOPTIONS="$PACKOPTIONS --noexport"
+			;;
+		*)
+			printf "Unknown option: --${OPTARG}\n" >&2
+			usage
+			;;
+		esac;;
 	*)	usage >&2
 		exit 1
 		;;
@@ -77,7 +89,6 @@ dliso() {
 	fi
 }
 
-
 # source in the virtio references
 . "${PROGBASE}/config.sh"
 
@@ -102,11 +113,7 @@ sh "${PROGBASE}/tools/pack.sh" \
 	"${ISODIR}/${fname}" \
 	"${ISODIR}/virtio-win.iso" \
 	"${PROGBASE}/local/" \
-	"${OUTDIR}"
-
-
-printf '[+] Generating metadata\n'
-
-exec sh "${PROGBASE}/tools/mkmeta" "${1}" >"${OUTDIR}/incus.tar.xz"
+	"${OUTDIR}" \
+	"${PACKOPTIONS}"
 
 # ==================================================================== #
