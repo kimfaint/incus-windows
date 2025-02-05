@@ -45,13 +45,25 @@ incus admin init --auto
 # Build a disk image (disk.qcow2) and metadata archive (incus.tar.xz)
 # in ./output/win2022/
 sh incus-windows/build.sh 2022
+```
 
-# Import into incus using helper script
-sh incus-windows/tools/import.sh ./output/win2022/
+The above will create a VM and once setup, publish it to a VM image.
+By default this image is also exported to the output directory as a split tarball.
+However if the exported output tarball is not required then using the `--noexport`
+flag will not perform the export.
 
+
+```
 # Create and launch the virtual machine
 incus launch win2022 w22 -c security.secureboot=false
 incus launch win2008 w2k8 -c security.secureboot=false -c security.csm=true
+```
+
+To import the split tarball output into Incus:
+
+```
+# Import into incus using helper script
+sh incus-windows/tools/import.sh ./output/win2022/
 ```
 
 All systems have an administrator-level account named `admin` with
