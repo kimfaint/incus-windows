@@ -10,6 +10,7 @@ An Incus-oriented Windows VMs imaging toolset.
 - Most/all drivers installed.
 - Serial console access (disabled by default).
 - Sharing host directory with guest.
+- SSH access.
 
 
 ## Supported versions
